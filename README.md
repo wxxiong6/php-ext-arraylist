@@ -16,7 +16,7 @@ $ret->add(1);
 $ret->get(0);
 $ret->count();
 $ret->getSize();
-$res->toArray();
+$ret->toArray();
 ```
 二维ArrayList
 ```php
@@ -37,9 +37,9 @@ ArrayList存array
 $ret3 = new ArrayList(1);
 $ret3->add([1, 3,4,5, 6,]);
 $ret3->add([3, 4,5,6, 7,]);
-for ($i=0; $i<$ret3->count(); $i++)
-        foreach($ret3->get($i) as $v){
-            var_dump($v);
-        }
+for ($i=0; $i<$ret3->count(); $i++){
+	foreach($ret3->get($i) as $v){
+		var_dump($v);
+	}
 }
 ```
