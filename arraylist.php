@@ -1,6 +1,10 @@
 <?php
-$ret = new ArrayList();
-$ret->add(1);
-var_dump($ret->get(0));
-var_dump($ret->count());
-var_dump($ret->getSize());
+$ret = new ArrayList(3);
+//$ret->add(22);
+const SIZE = 100;
+
+$ret2 = new ArrayList(SIZE);
+for ($i = 0; $i < SIZE; $i++)
+{
+	$ret2->add($i);
+}

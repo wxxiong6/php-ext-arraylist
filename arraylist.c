@@ -28,6 +28,10 @@
 
 #include "php_arraylist.h"
 
+#ifndef ARRAY_LIST_SIZE
+#define ARRAY_LIST_SIZE  16
+#endif
+
 /* For compatibility with older PHP versions */
 #ifndef ZEND_PARSE_PARAMETERS_NONE
 #define ZEND_PARSE_PARAMETERS_NONE() \
@@ -46,14 +50,6 @@ typedef struct _arraylist { /* {{{ */
 
 typedef struct _arraylist_object { /* {{{ */
 	arraylist             array;
-	zend_function         *fptr_offset_get;
-	zend_function         *fptr_offset_set;
-	zend_function         *fptr_offset_has;
-	zend_function         *fptr_offset_del;
-	zend_function         *fptr_count;
-	int                    current;
-	int                    flags;
-	zend_class_entry      *ce_get_iterator;
 	zend_object            std;
 } arraylist_object;
 /* }}} */
@@ -71,23 +67,32 @@ static inline arraylist_object *arraylist_from_obj(zend_object *obj) /* {{{ */ {
 
 
 
-static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
+
+
+static void destruct(arraylist *array)/* {{{ */
 {
-	if (size > 0) {
-		array->size = 0; /* reset size in case ecalloc() fails */
-		array->key = 0;
-		array->elements = ecalloc(size, sizeof(zval));
-		array->size = size;
-	} else {
+	if (array->size > 0)
+	{
+		efree(array->elements);
 		array->elements = NULL;
 		array->size = 0;
 		array->key = 0;
 	}
-
 }
 /* }}} */
 
+static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
+{
+	if (size > 0) {
+		array->size = 0; /* reset size in case ecalloc() fails */
+    	array->key = 0;
+		array->elements = NULL;
+		array->elements = (zval *)ecalloc(size, sizeof(zval));
+		array->size = size;
+	}
 
+}
+/* }}} */
 
 static void resize(arraylist *array)
 {
@@ -95,17 +100,18 @@ static void resize(arraylist *array)
 	{
 		zend_long oldSize = array->size == 1? 2 : array->size;
 		zend_long newSize = oldSize + (oldSize >> 1);
-
 		zval *elements;	
-		elements = ecalloc(newSize, sizeof(zval));
+		elements = (zval *)ecalloc(newSize, sizeof(zval));
 		zend_long i = 0;
-		for (; i < newSize; i++)
+		for (; i < array->size; i++)
 		{
 			elements[i] = array->elements[i];
 		}
-		efree(&array->elements[i]);
+		efree(array->elements);
+		array->elements = NULL;
 		array->elements = elements;
 		array->size = newSize;
+
 	}
 }
 
@@ -121,31 +127,6 @@ static void arraylist_add(arraylist *array, zval *val) /* {{{ */
 }
 /* }}} */
 
-
-/* }}}*/
-
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(arraylist)
-{
-#if defined(ZTS) && defined(COMPILE_DL_ARRAYLIST)
-	ZEND_TSRMLS_CACHE_UPDATE();
-#endif
-
-	return SUCCESS;
-}
-/* }}} */
-
-/* {{{ PHP_MINFO_FUNCTION  phpinfo显示扩展信息
- */
-PHP_MINFO_FUNCTION(arraylist)
-{
-	php_info_print_table_start();
-	php_info_print_table_row(2, "arraylist support", "enabled");
-	php_info_print_table_row(2, "Version", PHP_ARRAYLIST_VERSION);
-	php_info_print_table_end();
-}
-/* }}} */
 
 /* {{{ arginfo
  */
@@ -170,7 +151,7 @@ ZEND_END_ARG_INFO()
  */
 PHP_METHOD(arraylist, __construct)
 {
-	zend_long size = 16;
+	zend_long size = ARRAY_LIST_SIZE;
 
 	zval *object = getThis();
 	arraylist_object *intern;
@@ -216,7 +197,6 @@ PHP_METHOD(arraylist, get)
 	zval *object = getThis();
 	arraylist_object *intern;
     zend_long key;
-	zval *element;
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_LONG(key)
@@ -224,6 +204,7 @@ PHP_METHOD(arraylist, get)
 
 
 	intern = Z_ARRAYLIST_P(object);
+
 	if (key <= intern->array.size)
 	{
 		RETURN_ZVAL(&intern->array.elements[key], 0, 1);
@@ -290,6 +271,19 @@ PHP_METHOD(arraylist, toArray)
 }
 /* }}} */
 
+PHP_METHOD(arraylist, __destruct)
+{
+	zval *object = getThis();
+	arraylist_object *intern;
+
+	if (zend_parse_parameters_none() == FAILURE) {
+		return;
+	}
+
+	intern = Z_ARRAYLIST_P(object);
+	destruct(&intern->array);
+}
+
 /* {{{ arraylist_functions[] 扩展函数
  */
 static const zend_function_entry arraylist_functions[] = {
@@ -306,25 +300,49 @@ static const zend_function_entry arraylist_methods[] = {
 	PHP_ME(arraylist, count, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
 	PHP_ME(arraylist, toArray, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
 	PHP_ME(arraylist, getSize, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, __destruct, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
 
-/* {{{ arraylist_module_entry
+/* {{{ PHP_MSHUTDOWN_FUNCTION
  */
-zend_module_entry arraylist_module_entry = { 
-	STANDARD_MODULE_HEADER,
-	"arraylist",					/* 扩展名 name */
-	arraylist_functions,			/* 注册函数，注意这里不是注册方法 */
-	PHP_MINIT(arraylist),							/* PHP_MINIT - Module initialization */
-	NULL,							/* PHP_MSHUTDOWN - Module shutdown */
-	NULL,			               /* PHP_RINIT - Request initialization */
-	NULL,							/* PHP_RSHUTDOWN - Request shutdown */
-	NULL,			/* 
- - Module info */
-	PHP_ARRAYLIST_VERSION,		/* Version */
-	STANDARD_MODULE_PROPERTIES
-};
+PHP_MSHUTDOWN_FUNCTION(arraylist)
+{
+	return SUCCESS;
+}
+/* }}} */
+
+
+/* {{{ PHP_RSHUTDOWN_FUNCTION
+ */
+PHP_RSHUTDOWN_FUNCTION(arraylist)
+{
+	return SUCCESS;
+}
+
+
+/* {{{ PHP_RINIT_FUNCTION
+ */
+PHP_RINIT_FUNCTION(arraylist)
+{
+#if defined(ZTS) && defined(COMPILE_DL_ARRAYLIST)
+	ZEND_TSRMLS_CACHE_UPDATE();
+#endif
+
+	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ PHP_MINFO_FUNCTION  phpinfo显示扩展信息
+ */
+PHP_MINFO_FUNCTION(arraylist)
+{
+	php_info_print_table_start();
+	php_info_print_table_row(2, "arraylist support", "enabled");
+	php_info_print_table_row(2, "Version", PHP_ARRAYLIST_VERSION);
+	php_info_print_table_end();
+}
 /* }}} */
 
 // 模块初始化时调用
@@ -350,6 +368,21 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 }
 /* }}} */
 
+/* {{{ arraylist_module_entry
+ */
+zend_module_entry arraylist_module_entry = { 
+	STANDARD_MODULE_HEADER,
+	"arraylist",					/* 扩展名 name */
+	arraylist_functions,			/* 注册函数，注意这里不是注册方法 */
+	PHP_MINIT(arraylist),			/* PHP_MINIT - Module initialization */
+	PHP_MSHUTDOWN(arraylist),		/* PHP_MSHUTDOWN - Module shutdown */
+	PHP_RINIT(arraylist),			/* PHP_RINIT - Request initialization */
+	PHP_RSHUTDOWN(arraylist),		/* PHP_RSHUTDOWN - Request shutdown */
+	PHP_MINFO(arraylist),			/*  - Module info */
+	PHP_ARRAYLIST_VERSION,		    /* Version */
+	STANDARD_MODULE_PROPERTIES
+};
+/* }}} */
 
 #ifdef COMPILE_DL_ARRAYLIST
 # ifdef ZTS
@@ -357,4 +390,3 @@ ZEND_TSRMLS_CACHE_DEFINE()
 # endif
 ZEND_GET_MODULE(arraylist)
 #endif
-

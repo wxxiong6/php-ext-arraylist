@@ -4,7 +4,7 @@ Check for arraylist presence
 <?php if (!extension_loaded("arraylist")) print "skip"; ?>
 --FILE--
 <?php
-echo "arraylist extension is available";
+echo "arraylist extension is available\n";
 $ret = new ArrayList();
 $ret->add(1);
 var_dump($ret->get(0));
