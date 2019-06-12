@@ -83,14 +83,12 @@ static void destruct(arraylist *array)/* {{{ */
 
 static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
 {
-	if (size > 0) {
-		array->size = 0; /* reset size in case ecalloc() fails */
+	
+	array->size = 0; /* reset size in case ecalloc() fails */
     	array->key = 0;
-		array->elements = NULL;
-		array->elements = (zval *)ecalloc(size, sizeof(zval));
-		array->size = size;
-	}
-
+	array->elements = NULL;
+	array->elements = (zval *)ecalloc(size, sizeof(zval));
+	array->size = size;
 }
 /* }}} */
 
