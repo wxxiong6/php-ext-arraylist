@@ -15,7 +15,15 @@ dnl Otherwise use enable:
 
 PHP_ARG_ENABLE(arraylist, whether to enable arraylist support,
 dnl Make sure that the comment is aligned:
-[  --enable-arraylist           Enable arraylist support])
+[  --enable-arraylist      Enable arraylist support])
+
+if test -z "$PHP_DEBUG"; then
+    PHP_ARG_ENABLE(debug, whether to enable arraylist debug support,
+    dnl Make sure that the comment is aligned:
+[  --enable-debug          Enable arraylist debuging support],
+    [PHP_DEBUG=$enableval],[PHP_DEBUG=no]
+   )
+fi
 
 if test "$PHP_ARRAYLIST" != "no"; then
   dnl Write more examples of tests here...
