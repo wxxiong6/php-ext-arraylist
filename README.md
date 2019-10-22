@@ -1,5 +1,6 @@
 # php-ext-arraylist
-php扩展ArrayList
+ArrayList是一个使用使用C实现类似于Java ArrayList的扩展。
+适用于大数组环境,提高内存使用率，比原生array使用更少的内存。
 
 ## linux mac 环境下编译安装
 ```shell
