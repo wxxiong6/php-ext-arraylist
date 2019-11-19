@@ -25,11 +25,10 @@
 #include "php.h"
 #include "ext/standard/info.h"
 #include "zend_exceptions.h"
-
 #include "php_arraylist.h"
 
 #ifndef ARRAY_LIST_SIZE
-#define ARRAY_LIST_SIZE  16
+#define ARRAY_LIST_SIZE  8
 #endif
 
 /* For compatibility with older PHP versions */
@@ -40,11 +39,13 @@
 #endif
 
 zend_class_entry *array_list_ce;
+zend_object_handlers handler_ArrayList;
 
 typedef struct _arraylist { /* {{{ */
-	zend_long size;    //数组大小
- 	zend_long key;    //数组当前使用key 
-	zval *elements;  //数组元素
+	size_t nSize;     
+ 	size_t nNumUsed;  
+	size_t nNextIndex;   
+	zval *elements;  
 } arraylist;
 /* }}} */
 
@@ -65,67 +66,6 @@ static inline arraylist_object *arraylist_from_obj(zend_object *obj) /* {{{ */ {
 #define Z_ARRAYLIST_P(zv)  arraylist_from_obj(Z_OBJ_P((zv)))
 
 
-
-
-
-
-static void destruct(arraylist *array)/* {{{ */
-{
-	if (array->size > 0)
-	{
-		efree(array->elements);
-		array->elements = NULL;
-		array->size = 0;
-		array->key = 0;
-	}
-}
-/* }}} */
-
-static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
-{
-	
-	array->size = 0; /* reset size in case ecalloc() fails */
-    	array->key = 0;
-	array->elements = NULL;
-	array->elements = (zval *)ecalloc(size, sizeof(zval));
-	array->size = size;
-}
-/* }}} */
-
-static void resize(arraylist *array)
-{
-	if (array->key == array->size)
-	{
-		zend_long oldSize = array->size == 1? 2 : array->size;
-		zend_long newSize = oldSize + (oldSize >> 1);
-		zval *elements;	
-		elements = (zval *)ecalloc(newSize, sizeof(zval));
-		zend_long i = 0;
-		for (; i < array->size; i++)
-		{
-			elements[i] = array->elements[i];
-		}
-		efree(array->elements);
-		array->elements = NULL;
-		array->elements = elements;
-		array->size = newSize;
-
-	}
-}
-
-static void arraylist_add(arraylist *array, zval *val) /* {{{ */
-{
-	if (!array)
-	{
-		return ;
-	}
-	resize(array);
-	ZVAL_COPY(&array->elements[array->key], val);
-	array->key++;
-}
-/* }}} */
-
-
 /* {{{ arginfo
  */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_arraylist__construct, 0, 0, 1)
@@ -144,13 +84,21 @@ ZEND_BEGIN_ARG_INFO(arginfo_arraylist_void, 0)
 ZEND_END_ARG_INFO()
 /* }}} */
 
+static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
+{
+	array->elements = NULL;
+	array->elements = (zval *)ecalloc(size, sizeof(zval));
+	array->nSize = size;
+    array->nNumUsed = 0;
+	array->nNextIndex = 0;
+}
+/* }}} */
 
 /* {{{ void arraylist::__construct()
  */
 PHP_METHOD(arraylist, __construct)
 {
 	zend_long size = ARRAY_LIST_SIZE;
-
 	zval *object = getThis();
 	arraylist_object *intern;
 	intern = Z_ARRAYLIST_P(object);
@@ -160,27 +108,61 @@ PHP_METHOD(arraylist, __construct)
 		Z_PARAM_LONG(size)
 	ZEND_PARSE_PARAMETERS_END();
 
-
-
 	arraylist_init(&intern->array, size);
-
+	
 }
 /* }}} */
+
+static void arraylist_resize(arraylist *array) /* {{{ */
+{
+	if (array->nNumUsed == array->nSize)
+	{
+		zend_long oldSize = array->nSize == 1? 2 : array->nSize;
+		zend_long newSize = oldSize + (oldSize >> 1);
+		zval *elements;	
+		elements = (zval *)ecalloc(newSize, sizeof(zval));
+		zend_long i = 0;
+		for (; i < array->nSize; i++)
+		{
+			elements[i] = array->elements[i];
+		}
+		efree(array->elements);
+		array->elements = NULL;
+		array->elements = elements;
+		array->nSize = newSize;
+	}
+}
+/* }}} */
+
+static void arraylist_add(arraylist *array, zval *val) /* {{{ */
+{
+	if (!array)
+	{
+		return ;
+	}
+
+	// if (&array->elements[array->nNextIndex] != NULL) {
+		// printf("ptr = %p, size=%zu \n", intern, intern->array.nSize);
+		php_debug_zval_dump(&array->elements[array->nNextIndex], 1);
+		ZVAL_COPY(&array->elements[array->nNextIndex], val);
+		Z_TRY_ADDREF(array->elements[array->nNextIndex]);
+		array->nNextIndex++;
+		array->nNumUsed++;
+	// }
+}
+
 
 /* {{{ string arraylist::add( [  $val ] )
  */
 PHP_METHOD(arraylist, add)
 {
-
 	zval *object = getThis();
 	arraylist_object *intern;
-	size_t var_len;
     zval *val;
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_ZVAL(val)
 	ZEND_PARSE_PARAMETERS_END();
-
 
 	intern = Z_ARRAYLIST_P(object);
 	arraylist_add(&intern->array, val);
@@ -200,12 +182,16 @@ PHP_METHOD(arraylist, get)
 		Z_PARAM_LONG(key)
 	ZEND_PARSE_PARAMETERS_END();
 
-
 	intern = Z_ARRAYLIST_P(object);
 
-	if (key <= intern->array.size)
+	if (key <= intern->array.nSize)
 	{
-		RETURN_ZVAL(&intern->array.elements[key], 0, 1);
+		if (&intern->array.elements[key] != NULL) 
+		{
+			RETURN_ZVAL(&intern->array.elements[key], 1, 1);
+		} else {
+			RETURN_NULL();
+		}
 	} 
 	else
 	{
@@ -217,26 +203,22 @@ PHP_METHOD(arraylist, count)
 {
 	zval *object = getThis();
 	arraylist_object *intern;
-
 	if (zend_parse_parameters_none() == FAILURE) {
 		return;
 	}
-
 	intern = Z_ARRAYLIST_P(object);
-	RETURN_LONG(intern->array.key);
+	RETURN_LONG(intern->array.nNumUsed);
 }
 
 PHP_METHOD(arraylist, getSize)
 {
 	zval *object = getThis();
 	arraylist_object *intern;
-
 	if (zend_parse_parameters_none() == FAILURE) {
 		return;
 	}
-
 	intern = Z_ARRAYLIST_P(object);
-	RETURN_LONG(intern->array.size);
+	RETURN_LONG(intern->array.nSize);
 }
 
 /* {{{ proto object arraylist::toArray()
@@ -250,12 +232,10 @@ PHP_METHOD(arraylist, toArray)
 	}
 
 	intern = Z_ARRAYLIST_P(getThis());
-
-	if (intern->array.size > 0) {
+	if (intern->array.nNumUsed > 0) {
 		int i = 0;
-
-		array_init_size(return_value, intern->array.size);
-		for (; i < intern->array.size; i++) {
+		array_init_size(return_value, intern->array.nNumUsed);
+		for (; i < intern->array.nNumUsed; i++) {
 			if (!Z_ISUNDEF(intern->array.elements[i])) {
 				zend_hash_index_update(Z_ARRVAL_P(return_value), i, &intern->array.elements[i]);
 				Z_TRY_ADDREF(intern->array.elements[i]);
@@ -269,17 +249,56 @@ PHP_METHOD(arraylist, toArray)
 }
 /* }}} */
 
+static void arraylist_object_free_storage(zend_object *object)/* {{{ */
+{
+	arraylist_object *intern = arraylist_from_obj(object);
+	arraylist *array = &intern->array;
+	if (array->nSize > 0)
+	{
+		int i = 0;
+		for (; i < array->nSize; i++) 
+		{
+			zval_ptr_dtor(&array->elements[i]);
+		}
+		efree(array->elements);
+		array->elements = NULL;
+		array->nNumUsed = 0;
+		array->nNextIndex = 0;
+	}
+	zend_object_std_dtor(&intern->std);
+}
+/* }}} */
+
+static void arraylist_destruct(arraylist_object *intern)/* {{{ */
+{
+	// arraylist_object *intern = arraylist_from_obj(object);
+	arraylist *array = &intern->array;
+	if (array->nSize > 0)
+	{
+		int i = 0;
+		for (; i < array->nSize; i++) 
+		{
+			zval_ptr_dtor(&array->elements[i]);
+		}
+		efree(array->elements);
+		array->elements = NULL;
+		array->nNumUsed = 0;
+		array->nNextIndex = 0;
+	}
+	zend_object_std_dtor(&intern->std);
+}
+/* }}} */
+
 PHP_METHOD(arraylist, __destruct)
 {
 	zval *object = getThis();
 	arraylist_object *intern;
-
 	if (zend_parse_parameters_none() == FAILURE) {
 		return;
 	}
-
 	intern = Z_ARRAYLIST_P(object);
-	destruct(&intern->array);
+	
+	arraylist_destruct(intern);
 }
 
 /* {{{ arraylist_functions[] 扩展函数
@@ -292,13 +311,13 @@ static const zend_function_entry arraylist_functions[] = {
 /* {{{ arraylist__methods[] 扩展类方法
  */
 static const zend_function_entry arraylist_methods[] = { 
-	PHP_ME(arraylist, __construct,	arginfo_arraylist__construct, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
-	PHP_ME(arraylist, add, arginfo_arraylist_add, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, get, arginfo_arraylist_get, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, count, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, toArray, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, getSize, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, __destruct, arginfo_arraylist_void, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, __construct,	arginfo_arraylist__construct, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, add,          arginfo_arraylist_add, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, get,          arginfo_arraylist_get, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, count,        arginfo_arraylist_void, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, toArray,      arginfo_arraylist_void, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, getSize,      arginfo_arraylist_void, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, __destruct,   arginfo_arraylist_void, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
@@ -358,9 +377,14 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 		sizeof(PHP_ARRAYLIST_VERSION)-1, 
 		CONST_CS|CONST_PERSISTENT
 	);
-    
 	INIT_CLASS_ENTRY(ce, "ArrayList", arraylist_methods); //注册类及类方法
     array_list_ce = zend_register_internal_class(&ce);
+
+    memcpy(&handler_ArrayList, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+	handler_ArrayList.offset          = XtOffsetOf(arraylist_object, std);
+	handler_ArrayList.free_obj        = arraylist_object_free_storage;
+
+	
 
     return SUCCESS;
 }
