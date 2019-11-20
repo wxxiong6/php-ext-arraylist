@@ -24,6 +24,7 @@
 
 #include "php.h"
 #include "ext/standard/info.h"
+#include "ext/standard/php_var.h"
 #include "zend_exceptions.h"
 #include "php_arraylist.h"
 
@@ -39,7 +40,7 @@
 #endif
 
 zend_class_entry *array_list_ce;
-zend_object_handlers handler_ArrayList;
+zend_object_handlers handler_array_list;
 
 typedef struct _arraylist { /* {{{ */
 	size_t nSize;     
@@ -88,9 +89,9 @@ static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
 {
 	array->elements = NULL;
 	array->elements = (zval *)ecalloc(size, sizeof(zval));
-	array->nSize = size;
     array->nNumUsed = 0;
 	array->nNextIndex = 0;
+	array->nSize = size;
 }
 /* }}} */
 
@@ -117,18 +118,19 @@ static void arraylist_resize(arraylist *array) /* {{{ */
 {
 	if (array->nNumUsed == array->nSize)
 	{
-		zend_long oldSize = array->nSize == 1? 2 : array->nSize;
-		zend_long newSize = oldSize + (oldSize >> 1);
-		zval *elements;	
-		elements = (zval *)ecalloc(newSize, sizeof(zval));
-		zend_long i = 0;
+        size_t i = 0;
+		size_t oldSize = array->nSize == 1? 2 : array->nSize;
+		size_t newSize = oldSize + (oldSize >> 1);
+		zval *elements  = (zval *)ecalloc(newSize, sizeof(zval));
 		for (; i < array->nSize; i++)
 		{
 			elements[i] = array->elements[i];
+            zval_dtor(&array->elements[i]);
 		}
 		efree(array->elements);
 		array->elements = NULL;
 		array->elements = elements;
+        // Z_TRY_ADDREF(elements);
 		array->nSize = newSize;
 	}
 }
@@ -136,19 +138,19 @@ static void arraylist_resize(arraylist *array) /* {{{ */
 
 static void arraylist_add(arraylist *array, zval *val) /* {{{ */
 {
-	if (!array)
+	if (array == NULL)
 	{
-		return ;
-	}
-
-	// if (&array->elements[array->nNextIndex] != NULL) {
-		// printf("ptr = %p, size=%zu \n", intern, intern->array.nSize);
-		php_debug_zval_dump(&array->elements[array->nNextIndex], 1);
-		ZVAL_COPY(&array->elements[array->nNextIndex], val);
-		Z_TRY_ADDREF(array->elements[array->nNextIndex]);
-		array->nNextIndex++;
-		array->nNumUsed++;
-	// }
+		 php_error_docref(NULL, E_NOTICE, "array cann't be empty.");
+		 return;
+	} 
+    // arraylist_resize(array);
+    // php_printf("nNextIndex=%zu,nSize=%zu \n", array->nNextIndex, array->nSize);
+	// php_debug_zval_dump(&array->elements[array->nNextIndex], 1);
+	Z_TRY_ADDREF(array->elements[array->nNextIndex]);
+	ZVAL_ZVAL(&array->elements[array->nNextIndex], val, 1, 1);
+	
+	array->nNextIndex++;
+	array->nNumUsed++;
 }
 
 
@@ -164,7 +166,9 @@ PHP_METHOD(arraylist, add)
 		Z_PARAM_ZVAL(val)
 	ZEND_PARSE_PARAMETERS_END();
 
+    
 	intern = Z_ARRAYLIST_P(object);
+
 	arraylist_add(&intern->array, val);
 	
 	RETURN_TRUE;
@@ -184,20 +188,21 @@ PHP_METHOD(arraylist, get)
 
 	intern = Z_ARRAYLIST_P(object);
 
-	if (key <= intern->array.nSize)
+	if (key >= intern->array.nSize)
 	{
-		if (&intern->array.elements[key] != NULL) 
-		{
-			RETURN_ZVAL(&intern->array.elements[key], 1, 1);
-		} else {
-			RETURN_NULL();
-		}
-	} 
-	else
-	{
-		RETURN_NULL();
-	}
-}
+        php_error_docref(NULL, E_NOTICE, "Undefined offset:%ld", key);
+        RETURN_NULL();
+    }
+
+    if (&intern->array.elements[key] != NULL) 
+    {
+		Z_TRY_ADDREF(intern->array.elements[key]);
+        RETURN_ZVAL(&intern->array.elements[key], 1, 0);
+    } else {
+        RETURN_NULL();
+    }
+} 
+
 
 PHP_METHOD(arraylist, count)
 {
@@ -249,43 +254,27 @@ PHP_METHOD(arraylist, toArray)
 }
 /* }}} */
 
-static void arraylist_object_free_storage(zend_object *object)/* {{{ */
-{
-	arraylist_object *intern = arraylist_from_obj(object);
-	arraylist *array = &intern->array;
-	if (array->nSize > 0)
-	{
-		int i = 0;
-		for (; i < array->nSize; i++) 
-		{
-			zval_ptr_dtor(&array->elements[i]);
-		}
-		efree(array->elements);
-		array->elements = NULL;
-		array->nNumUsed = 0;
-		array->nNextIndex = 0;
-	}
-	zend_object_std_dtor(&intern->std);
-}
-/* }}} */
 
 static void arraylist_destruct(arraylist_object *intern)/* {{{ */
 {
 	// arraylist_object *intern = arraylist_from_obj(object);
 	arraylist *array = &intern->array;
-	if (array->nSize > 0)
+	if (array->elements)
 	{
 		int i = 0;
-		for (; i < array->nSize; i++) 
+		for (; i < array->nNumUsed; i++) 
 		{
-			zval_ptr_dtor(&array->elements[i]);
+             if (&array->elements[i]) {
+                zval_ptr_dtor(&array->elements[i]);
+             }
 		}
 		efree(array->elements);
 		array->elements = NULL;
-		array->nNumUsed = 0;
-		array->nNextIndex = 0;
+	    array->nNumUsed = 0;
+		array->nSize = 0;
+	    array->nNextIndex = 0;
 	}
-	zend_object_std_dtor(&intern->std);
+  
 }
 /* }}} */
 
@@ -297,7 +286,6 @@ PHP_METHOD(arraylist, __destruct)
 		return;
 	}
 	intern = Z_ARRAYLIST_P(object);
-	
 	arraylist_destruct(intern);
 }
 
@@ -312,15 +300,25 @@ static const zend_function_entry arraylist_functions[] = {
  */
 static const zend_function_entry arraylist_methods[] = { 
 	PHP_ME(arraylist, __construct,	arginfo_arraylist__construct, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, add,          arginfo_arraylist_add, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, get,          arginfo_arraylist_get, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, count,        arginfo_arraylist_void, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, toArray,      arginfo_arraylist_void, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, getSize,      arginfo_arraylist_void, ZEND_ACC_PUBLIC)
-	PHP_ME(arraylist, __destruct,   arginfo_arraylist_void, ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, add,          arginfo_arraylist_add,        ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, get,          arginfo_arraylist_get,        ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, count,        arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, toArray,      arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, getSize,      arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, __destruct,   arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
+
+static void arraylist_object_free_storage(zend_object *object)/* {{{ */
+{
+	arraylist_object *intern = arraylist_from_obj(object);
+	arraylist *array = &intern->array;
+	arraylist_destruct(intern);
+	zend_object_std_dtor(&intern->std);
+}
+/* }}} */
+
 
 /* {{{ PHP_MSHUTDOWN_FUNCTION
  */
@@ -380,12 +378,12 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 	INIT_CLASS_ENTRY(ce, "ArrayList", arraylist_methods); //注册类及类方法
     array_list_ce = zend_register_internal_class(&ce);
 
-    memcpy(&handler_ArrayList, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
-	handler_ArrayList.offset          = XtOffsetOf(arraylist_object, std);
-	handler_ArrayList.free_obj        = arraylist_object_free_storage;
-
+    memcpy(&handler_array_list, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+	handler_array_list.offset          = XtOffsetOf(arraylist_object, std);
 	
-
+	handler_array_list.clone_obj       = zend_objects_clone_obj;
+	handler_array_list.free_obj        = arraylist_object_free_storage;
+	handler_array_list.dtor_obj        = zend_objects_destroy_object;
     return SUCCESS;
 }
 /* }}} */
