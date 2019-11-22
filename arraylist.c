@@ -120,7 +120,7 @@ PHP_METHOD(arraylist, __construct)
 
 static void arraylist_resize(arraylist *array) /* {{{ */
 {
-	if (array->nNextIndex == array->nSize)
+	if (array->nNextIndex >= array->nSize)
 	{
         size_t i = 0;
 		size_t oldSize = array->nSize == 1? 2 : array->nSize;
@@ -134,7 +134,6 @@ static void arraylist_resize(arraylist *array) /* {{{ */
 		efree(array->elements);
 		array->elements = NULL;
 		array->elements = elements;
-        // Z_TRY_ADDREF(elements);
 		array->nSize = newSize;
 	}
 }
@@ -184,11 +183,12 @@ PHP_METHOD(arraylist, add)
 	ZEND_PARSE_PARAMETERS_END();
 
 	intern = Z_ARRAYLIST_P(object);
+	arraylist_resize(&intern->array);
 	if (intern->array.nSize > 0 && intern->array.nNextIndex < intern->array.nSize) {
 		ZVAL_LONG(&offset, intern->array.nNextIndex);
 		arraylist_object_write_dimension_helper(intern, &offset, val);
 		intern->array.nNextIndex++;
-		// intern->array.nNumUsed++;
+		intern->array.nNumUsed++;
 		RETURN_TRUE;
 	} else {
 		RETURN_FALSE;
@@ -264,6 +264,7 @@ PHP_METHOD(arraylist, getSize)
 	if (zend_parse_parameters_none() == FAILURE) {
 		return;
 	}
+	intern = Z_ARRAYLIST_P(object);
 	RETURN_LONG(intern->array.nSize);
 }
 
@@ -446,7 +447,7 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 		sizeof(PHP_ARRAYLIST_VERSION)-1, 
 		CONST_CS|CONST_PERSISTENT
 	);
-	
+
 	INIT_CLASS_ENTRY(ce, "ArrayList", arraylist_methods); //注册类及类方法
     array_list_ce = zend_register_internal_class(&ce);
 	array_list_ce->create_object   = arraylist_new;
