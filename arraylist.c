@@ -27,6 +27,7 @@
 #include "ext/standard/php_var.h"
 #include "zend_exceptions.h"
 #include "php_arraylist.h"
+#include "zend_interfaces.h"
 
 #ifndef ARRAY_LIST_SIZE
 #define ARRAY_LIST_SIZE  8
@@ -81,6 +82,15 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_arraylist_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, key)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_arraylist_offsetGet, 0, 0, 1)
+	ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_arraylist_offsetSet, 0, 0, 2)
+	ZEND_ARG_INFO(0, index)
+	ZEND_ARG_INFO(0, newval)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO(arginfo_arraylist_void, 0)
@@ -144,7 +154,7 @@ static inline void arraylist_object_write_dimension_helper(arraylist_object *int
 	zend_long index;
 
 	if (!offset) {
-		php_error_docref(NULL, E_NOTICE, "Index invalid or out of range");
+		php_error_docref(NULL, E_NOTICE, "Index invalid or out of range 0");
 		return;
 	}
 
@@ -156,7 +166,7 @@ static inline void arraylist_object_write_dimension_helper(arraylist_object *int
 	}
 
 	if (index < 0 || index >= intern->array.nSize) {
-		php_error_docref(NULL, E_NOTICE, "Index invalid or out of range");
+		php_error_docref(NULL, E_NOTICE, "Index invalid or out of range %ld", index);
 		return;
 	} else {
 		if (!Z_ISUNDEF(intern->array.elements[index])) {
@@ -211,7 +221,7 @@ static inline zval *arraylist_object_read_dimension_helper(arraylist_object *int
 	}
 
 	if (index < 0 || index >= intern->array.nSize) {
-		php_error_docref(NULL, E_NOTICE,"Index invalid or out of range '%ld'", index);
+		php_error_docref(NULL, E_NOTICE,"Index invalid or out of range %ld", index);
 		return NULL;
 	} else if (Z_ISUNDEF(intern->array.elements[index])) {
 		return NULL;
@@ -320,6 +330,125 @@ PHP_METHOD(arraylist, __destruct)
 {
 }
 
+static inline int arraylist_object_has_dimension_helper(arraylist_object *intern, zval *offset, int check_empty) /* {{{ */
+{
+	zend_long index;
+	int retval;
+
+	if (Z_TYPE_P(offset) != IS_LONG) {
+		 convert_to_long(offset);
+		index = Z_LVAL_P(offset);
+	} else {
+		index = Z_LVAL_P(offset);
+	}
+
+	if (index < 0 || index >= intern->array.nSize) {
+		retval = 0;
+	} else {
+		if (Z_ISUNDEF(intern->array.elements[index])) {
+			retval = 0;
+		} else if (check_empty) {
+			if (zend_is_true(&intern->array.elements[index])) {
+				retval = 1;
+			} else {
+				retval = 0;
+			}
+		} else { /* != NULL and !check_empty */
+			retval = 1;
+		}
+	}
+
+	return retval;
+}
+/* }}} */
+
+static inline void arraylist_object_unset_dimension_helper(arraylist_object *intern, zval *offset) /* {{{ */
+{
+	zend_long index;
+
+	if (Z_TYPE_P(offset) != IS_LONG) {
+		 convert_to_long(offset);
+		index = Z_LVAL_P(offset);
+	} else {
+		index = Z_LVAL_P(offset);
+	}
+
+	if (index < 0 || index >= intern->array.nSize) {
+		php_error_docref(NULL, E_NOTICE,"Index invalid or out of range '%ld'", index);
+		return;
+	} else {
+		zval_ptr_dtor(&(intern->array.elements[index]));
+		ZVAL_UNDEF(&intern->array.elements[index]);
+	}
+}
+/* }}} */
+
+PHP_METHOD(arraylist, offsetExists)
+{
+	zval              *zindex;
+	arraylist_object  *intern;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ZVAL(zindex)
+	ZEND_PARSE_PARAMETERS_END();
+
+	intern = Z_ARRAYLIST_P(getThis());
+	RETURN_BOOL(arraylist_object_has_dimension_helper(intern, zindex, 0));
+}
+
+PHP_METHOD(arraylist, offsetGet)
+{
+	zval              *zindex, *value;
+	arraylist_object  *intern;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ZVAL(zindex)
+	ZEND_PARSE_PARAMETERS_END();
+
+	intern = Z_ARRAYLIST_P(getThis());
+	value = arraylist_object_read_dimension_helper(intern, zindex);
+
+	if (value) {
+		ZVAL_DEREF(value);
+		ZVAL_COPY(return_value, value);
+	} else {
+		RETURN_NULL();
+	}
+}
+
+
+PHP_METHOD(arraylist, offsetSet)
+{
+	zval              *zindex, *value;
+	arraylist_object  *intern;
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_ZVAL(zindex)
+		Z_PARAM_ZVAL(value)
+	ZEND_PARSE_PARAMETERS_END();
+	
+	intern = Z_ARRAYLIST_P(getThis());
+	arraylist_resize(&intern->array);
+	if (Z_TYPE_P(zindex) != IS_LONG) {
+		ZVAL_LONG(zindex, intern->array.nNextIndex);
+	}
+	arraylist_object_write_dimension_helper(intern, zindex, value);
+	intern->array.nNextIndex++;
+	intern->array.nNumUsed++;
+}
+
+PHP_METHOD(arraylist, offsetUnset)
+{
+	zval              *zindex;
+	arraylist_object  *intern;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ZVAL(zindex)
+	ZEND_PARSE_PARAMETERS_END();
+
+	intern = Z_ARRAYLIST_P(getThis());
+	arraylist_object_unset_dimension_helper(intern, zindex);
+}
 /* {{{ arraylist_functions[] 扩展函数
  */
 static const zend_function_entry arraylist_functions[] = {
@@ -337,6 +466,10 @@ static const zend_function_entry arraylist_methods[] = {
 	PHP_ME(arraylist, toArray,      arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
 	PHP_ME(arraylist, getSize,      arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
 	PHP_ME(arraylist, __destruct,   arginfo_arraylist_void,       ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, offsetExists, arginfo_arraylist_offsetGet,  ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, offsetGet,    arginfo_arraylist_offsetGet,  ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, offsetSet,    arginfo_arraylist_offsetSet,  ZEND_ACC_PUBLIC)
+	PHP_ME(arraylist, offsetUnset,  arginfo_arraylist_offsetGet,  ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 /* }}} */
@@ -459,8 +592,8 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 	handler_array_list.free_obj        = arraylist_object_free_storage;
 	handler_array_list.dtor_obj        = zend_objects_destroy_object;
 
-
 	/* 单个对象的功能 */
+	zend_class_implements(array_list_ce, 1, zend_ce_arrayaccess);
 
     return SUCCESS;
 }
