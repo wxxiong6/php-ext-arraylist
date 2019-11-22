@@ -93,7 +93,7 @@ static void arraylist_init(arraylist *array, zend_long size) /* {{{ */
 	array->elements = (zval *)ecalloc(size, sizeof(zval));
 	array->nSize = size;
 	array->nNextIndex = 0;
-	// array->nNumUsed = 0;
+	array->nNumUsed = 0;
 }
 /* }}} */
 
@@ -112,11 +112,9 @@ PHP_METHOD(arraylist, __construct)
 	ZEND_PARSE_PARAMETERS_END();
 	
 	if (intern->array.nSize > 0) {
-		/* called __construct() twice, bail out */
 		return;
 	}
 	arraylist_init(&intern->array, size);
-	
 }
 /* }}} */
 
@@ -302,15 +300,13 @@ static void arraylist_destruct(arraylist_object *intern)/* {{{ */
 {
 
 	zend_long i;
-	printf("size=%zu\n", intern->array.nSize);
 	if (intern->array.nSize > 0) {
 		for (i = 0; i < intern->array.nSize; i++) {
-			if (!Z_ISUNDEF(intern->array.elements[i])) {
+			if (&(intern->array.elements[i]) != NULL && !Z_ISUNDEF(intern->array.elements[i])) {
 				zval_ptr_dtor(&(intern->array.elements[i]));
 			}
-			
 		}
-
+		intern->array.nSize = 0;
 		if (intern->array.elements) {
 			efree(intern->array.elements);
 			intern->array.elements = NULL;
@@ -321,13 +317,6 @@ static void arraylist_destruct(arraylist_object *intern)/* {{{ */
 
 PHP_METHOD(arraylist, __destruct)
 {
-	zval *object = getThis();
-	arraylist_object *intern;
-	if (zend_parse_parameters_none() == FAILURE) {
-		return;
-	}
-	intern = Z_ARRAYLIST_P(object);
-	arraylist_destruct(intern);
 }
 
 /* {{{ arraylist_functions[] 扩展函数
@@ -375,15 +364,12 @@ static zend_object *arraylist_object_new_ex(zend_class_entry *class_type, zval *
 
 	if (orig && clone_orig) {
 		arraylist_object *other = Z_ARRAYLIST_P(orig);
-		// intern->ce_get_iterator = other->ce_get_iterator;
 		arraylist_init(&intern->array, other->array.nSize);
-		// spl_fixedarray_copy(&intern->array, &other->array);
 	}
 
 	while (parent) {
 		if (parent == array_list_ce) {
 			intern->std.handlers = &handler_array_list;
-			// class_type->get_iterator = spl_fixedarray_get_iterator;
 			break;
 		}
 
@@ -460,6 +446,7 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 		sizeof(PHP_ARRAYLIST_VERSION)-1, 
 		CONST_CS|CONST_PERSISTENT
 	);
+	
 	INIT_CLASS_ENTRY(ce, "ArrayList", arraylist_methods); //注册类及类方法
     array_list_ce = zend_register_internal_class(&ce);
 	array_list_ce->create_object   = arraylist_new;
