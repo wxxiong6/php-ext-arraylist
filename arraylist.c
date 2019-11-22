@@ -138,8 +138,10 @@ static void arraylist_resize(arraylist *array) /* {{{ */
 		zval *elements  = (zval *)ecalloc(newSize, sizeof(zval));
 		for (; i < array->nSize; i++)
 		{
-			elements[i] = array->elements[i];
-            zval_dtor(&array->elements[i]);
+			if (!Z_ISUNDEF(array->elements[i])) {
+				elements[i] = array->elements[i];
+           	 	zval_dtor(&array->elements[i]);
+			}
 		}
 		efree(array->elements);
 		array->elements = NULL;
