@@ -28,6 +28,7 @@ env:
 
 before_install:
   - chmod +x ./travis/compile.sh
+  - chmod +x ./travis/run-tests.sh
 
 #Compile
 before_script:
