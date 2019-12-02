@@ -8,11 +8,6 @@ os:
   - linux
 #  - osx
 
-matrix:
-  include:
-    - php: 5.3
-      dist: precise
-
 php:
   - 7.0
   - 7.1
