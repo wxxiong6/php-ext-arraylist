@@ -1,4 +1,5 @@
 # php-ext-arraylist
+[![Build Status](https://travis-ci.org/yangsenlin/snsdemo.svg?branch=master)](https://travis-ci.org/yangsenlin/snsdemo)
 ArrayList是一个使用使用C实现类似于Java ArrayList的扩展。
 适用于大数组环境,提高内存使用率，比原生array使用更少的内存。
 

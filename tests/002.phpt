@@ -10,9 +10,11 @@ $ret->add(1);
 var_dump($ret->get(0));
 var_dump($ret->count());
 var_dump($ret->getSize());
+var_dump(count($ret->toArray()));
 ?>
 --EXPECT--
 arraylist extension is available
 int(1)
 int(1)
-int(16)
+int(8)
+int(1)
