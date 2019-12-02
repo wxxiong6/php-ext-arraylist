@@ -27,7 +27,7 @@ env:
   - REPORT_EXIT_STATUS=1 NO_INTERACTION=1
 
 before_install:
-  - chmod +x mvnw
+  - chmod +x ./travis/compile.sh
 
 #Compile
 before_script:
