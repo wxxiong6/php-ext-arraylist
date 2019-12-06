@@ -162,11 +162,9 @@ static inline void arraylist_object_write_dimension_helper(arraylist_object *int
 
 	if (Z_TYPE_P(offset) != IS_LONG) {
 		convert_to_long(offset);
-		index = Z_LVAL_P(offset);
-	} else {
-		index = Z_LVAL_P(offset);
-	}
-
+	} 
+	index = Z_LVAL_P(offset);
+	
 	if (index < 0 || index >= intern->array.nSize) {
 		php_error_docref(NULL, E_NOTICE, "Index invalid or out of range %ld", index);
 		return;
@@ -217,10 +215,8 @@ static inline zval *arraylist_object_read_dimension_helper(arraylist_object *int
 
 	if (Z_TYPE_P(offset) != IS_LONG) {
 		 convert_to_long(offset);
-		index = Z_LVAL_P(offset);
-	} else {
-		index = Z_LVAL_P(offset);
-	}
+	} 
+	index = Z_LVAL_P(offset);
 
 	if (index < 0 || index >= intern->array.nSize) {
 		php_error_docref(NULL, E_NOTICE,"Index invalid or out of range %ld", index);
@@ -339,10 +335,8 @@ static inline int arraylist_object_has_dimension_helper(arraylist_object *intern
 
 	if (Z_TYPE_P(offset) != IS_LONG) {
 		 convert_to_long(offset);
-		index = Z_LVAL_P(offset);
-	} else {
-		index = Z_LVAL_P(offset);
-	}
+	} 
+	index = Z_LVAL_P(offset);
 
 	if (index < 0 || index >= intern->array.nSize) {
 		retval = 0;
@@ -370,11 +364,9 @@ static inline void arraylist_object_unset_dimension_helper(arraylist_object *int
 
 	if (Z_TYPE_P(offset) != IS_LONG) {
 		 convert_to_long(offset);
-		index = Z_LVAL_P(offset);
-	} else {
-		index = Z_LVAL_P(offset);
 	}
-
+	index = Z_LVAL_P(offset);
+	
 	if (index < 0 || index >= intern->array.nSize) {
 		php_error_docref(NULL, E_NOTICE,"Index invalid or out of range '%ld'", index);
 		return;
