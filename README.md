@@ -24,7 +24,6 @@ ArrayList implements ArrayAccess {
     /* 方法 */
     public __construct ([ int $size = 0 ] )
     public count ( void ) : int
-    public static fromArray (void) : array
     public getSize ( void ) : int
     public get ( int $index ) : mixed
     public add (mixed $newval ) : void
