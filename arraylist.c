@@ -130,22 +130,13 @@ PHP_METHOD(arraylist, __construct)
 
 static void arraylist_resize(arraylist *array) /* {{{ */
 {
-	if (array->nNextIndex >= array->nSize)
-	{
-        size_t i = 0;
+	if (array->nNextIndex < array->nSize) {
+		return;
+	} else if (array->nNextIndex >= array->nSize) {
 		size_t oldSize = array->nSize == 1? 2 : array->nSize;
 		size_t newSize = oldSize + (oldSize >> 1);
-		zval *elements  = (zval *)ecalloc(newSize, sizeof(zval));
-		for (; i < array->nSize; i++)
-		{
-			if (!Z_ISUNDEF(array->elements[i])) {
-				elements[i] = array->elements[i];
-           	 	zval_dtor(&array->elements[i]);
-			}
-		}
-		efree(array->elements);
-		array->elements = NULL;
-		array->elements = elements;
+		array->elements = safe_erealloc(array->elements, newSize, sizeof(zval), 0);
+		memset(array->elements + array->nSize, '\0', sizeof(zval) * (newSize - array->nSize));
 		array->nSize = newSize;
 	}
 }
@@ -174,7 +165,6 @@ static inline void arraylist_object_write_dimension_helper(arraylist_object *int
 		}
 		ZVAL_DEREF(value);
 		ZVAL_COPY(&intern->array.elements[index], value);
-		Z_TRY_ADDREF_P(value);
 	}
 }
 /* }}} */
