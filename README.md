@@ -2,14 +2,16 @@
 
 [![Build Status](https://travis-ci.org/wxxiong6/php-ext-arraylist.svg?branch=master)](https://travis-ci.org/wxxiong6/php-ext-arraylist)
 
-ArrayList是一个使用使用C实现类似于Java ArrayList的扩展。
-适用于大数组环境,提高内存使用率，比原生array使用更少的内存。
+ArrayList是一个使用C实现类似于Java ArrayList的高性能扩展。
+适用于构建超大数组,比原生数组创建数组使用时间更快，内存占用量更少。
 
 ## Requirement
+
 php7.0 +
 
 ## Install
-# Compile ArrayList in Linux mac
+
+### Compile ArrayList in Linux mac
 
 ```shell
 phpize
@@ -18,7 +20,12 @@ make
 make install
 ```
 
+### windows
+ 
+ 下载源码自行编译
+
 ## Document
+
 ```php
 ArrayList implements ArrayAccess {
     /* 方法 */
@@ -33,13 +40,16 @@ ArrayList implements ArrayAccess {
 ```
 
 ## More
+
 ```php
+
 $ret = new ArrayList();
 $ret[] = 1; // 也可以使用 $ret->add(1); 
 $ret[0];    // 也可以使用 $ret->get(0);
 $ret->count();
 $ret->getSize();
 $ret->toArray();
+
 ```
 
 ```php
@@ -48,17 +58,17 @@ $ret2 = new ArrayList();
 $ret3 = new ArrayList();
 for ($i = 0; $i < SIZE; $i++)
 {
-	$ret2->add((string)$i);
-	$ret3->add((string)(SIZE-$i));
+    $ret2->add((string)$i);
+    $ret3->add((string)(SIZE-$i));
 }
 $ret = new Arraylist();
 $ret->add($ret2);
 $ret->add($ret3);
 for ($i = 0; $i < $ret->count(); $i++) {
-	for($j = 0; $j < $ret->get($i)->count(); $j++) {
-		var_dump($ret->get($i)->get($j));
-	}
-	echo "\n";
+    for($j = 0; $j < $ret->get($i)->count(); $j++) {
+        var_dump($ret->get($i)->get($j));
+    }
+    echo "\n";
 }
 ```
 
@@ -72,6 +82,7 @@ for ($i = 0; $i< $ret->count(); $i++) {
     }
 }
 ```
+
 ## 与数组写入性能对比
 
 Testing size: 1,000
