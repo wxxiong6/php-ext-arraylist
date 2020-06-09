@@ -376,7 +376,7 @@ static inline void arraylist_object_unset_dimension_helper(arraylist_object *int
 	}
 	index = Z_LVAL_P(offset);
 	
-	if (index < 0 || index >= intern->array.nSize) {
+	if (index < 0 || index >= intern->array.nNumUsed) {
 		php_error_docref(NULL, E_NOTICE,"Index invalid or out of range '%ld'", index);
 		return;
 	} else {
@@ -519,22 +519,7 @@ static zend_object *arraylist_object_new_ex(zend_class_entry *class_type, zval *
 		php_error_docref(NULL, E_COMPILE_ERROR, "Internal compiler error, Class is not child of ArrayList");
 	}
 
-		if (inherited) {
-		if (class_type->iterator_funcs.zf_rewind->common.scope  != parent) {
-			intern->flags |= ARRAYLIST_OVERLOADED_REWIND;
-		}
-		if (class_type->iterator_funcs.zf_valid->common.scope   != parent) {
-			intern->flags |= ARRAYLIST_OVERLOADED_VALID;
-		}
-		if (class_type->iterator_funcs.zf_key->common.scope     != parent) {
-			intern->flags |= ARRAYLIST_OVERLOADED_KEY;
-		}
-		if (class_type->iterator_funcs.zf_current->common.scope != parent) {
-			intern->flags |= ARRAYLIST_OVERLOADED_CURRENT;
-		}
-		if (class_type->iterator_funcs.zf_next->common.scope    != parent) {
-			intern->flags |= ARRAYLIST_OVERLOADED_NEXT;
-		}
+	if (inherited) {
 
 		intern->fptr_offset_get = zend_hash_str_find_ptr(&class_type->function_table, "offsetget", sizeof("offsetget") - 1);
 		if (intern->fptr_offset_get->common.scope == parent) {
@@ -831,7 +816,12 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 
 	/* 单个对象的功能 */
 	zend_class_implements(array_list_ce, 1, zend_ce_arrayaccess);
-	zend_class_implements(array_list_ce, 1, zend_ce_countable);
+	
+	#if PHP_VERSION_ID > 70200
+		zend_class_implements(array_list_ce, 1, zend_ce_countable);
+	#endif
+
+	
     return SUCCESS;
 }
 /* }}} */
