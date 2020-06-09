@@ -817,7 +817,7 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 	/* 单个对象的功能 */
 	zend_class_implements(array_list_ce, 1, zend_ce_arrayaccess);
 	
-	#if PHP_VERSION_ID > 70200
+	#if PHP_VERSION_ID >= 70200
 		zend_class_implements(array_list_ce, 1, zend_ce_countable);
 	#endif
 
