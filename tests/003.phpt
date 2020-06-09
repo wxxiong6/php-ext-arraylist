@@ -7,10 +7,11 @@ Check for arraylist multidimensional arrays
 const SIZE = 20;
 $ret2 = new ArrayList();
 $ret3 = new ArrayList();
+$ret4 = new ArrayList();
 for ($i = 0; $i < SIZE; $i++)
 {
 	$ret2->add((string)$i);
-	$ret3->add((string)(SIZE-$i));
+	$ret3[] = ((string)(SIZE-$i));
 }
 $ret = new Arraylist();
 $ret->add($ret2);
