@@ -33,6 +33,10 @@
 #define ARRAY_LIST_SIZE  8
 #endif
 
+#if defined(HAVE_SPL) && PHP_VERSION_ID < 70200
+extern PHPAPI zend_class_entry *spl_ce_Countable;
+#endif
+
 /* For compatibility with older PHP versions */
 #ifndef ZEND_PARSE_PARAMETERS_NONE
 #define ZEND_PARSE_PARAMETERS_NONE() \
@@ -816,8 +820,10 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 
 	/* 单个对象的功能 */
 	zend_class_implements(array_list_ce, 1, zend_ce_arrayaccess);
-	
-	#if PHP_VERSION_ID >= 70200
+
+	#if defined(HAVE_SPL) && PHP_VERSION_ID < 70200
+		zend_class_implements(array_list_ce, 1,  spl_ce_Countable);
+	#elif PHP_VERSION_ID >= 70200
 		zend_class_implements(array_list_ce, 1, zend_ce_countable);
 	#endif
 
