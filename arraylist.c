@@ -146,7 +146,7 @@ PHP_METHOD(arraylist, __construct)
 
 static void arraylist_resize(arraylist_object *intern) /* {{{ */
 {
-	if (intern->array.nNumUsed >= intern->array.nSize)
+	if (EXPECTED(intern->array.nNumUsed >= intern->array.nSize))
 	{
         size_t i = 0;
 		size_t oldSize = intern->array.nSize == 1? 2 : intern->array.nSize;
@@ -164,23 +164,23 @@ static inline void arraylist_object_write_dimension_helper(arraylist_object *int
 {
 	
 	zend_long index;
-	if (offset !=NULL && Z_TYPE_P(offset) == IS_LONG) {
+	if (EXPECTED(offset !=NULL && Z_TYPE_P(offset) == IS_LONG)) {
 		index = Z_LVAL_P(offset);
 	} else {
 		index = intern->array.nNextIndex;
 	}
-	if (intern->array.flag == 0) {
+	if (UNEXPECTED(intern->array.flag == 0)) {
 		intern->array.elements = (zval *)ecalloc(intern->array.nSize, sizeof(zval));
 			intern->array.flag = 1;
 	}	
 
-	if (index < 0 || index >= intern->array.nSize) {
+	if (UNEXPECTED(index < 0 || index >= intern->array.nSize)) {
 		//  printf("%p, size=%d\n", intern->array.elements, intern->array.nSize);
 		 arraylist_resize(intern);
 		//  printf("%p, size=%d\n", intern->array.elements, intern->array.nSize);
 	} 
 	// printf("key=%d, value=%s\n", index, Z_STRVAL_P(value));
-	if (!Z_ISUNDEF(intern->array.elements[index])) {
+	if (UNEXPECTED(!Z_ISUNDEF(intern->array.elements[index]))) {
 		 zval_dtor(&(intern->array.elements[index]));
 	} else {
 		intern->array.nNextIndex++;
@@ -208,7 +208,7 @@ PHP_METHOD(arraylist, add)
 
 	intern = Z_ARRAYLIST_P(object);
 	
-	if (intern->array.nSize > 0) {
+	if (EXPECTED(intern->array.nSize > 0)) {
 		ZVAL_LONG(&offset, intern->array.nNextIndex);
 		arraylist_object_write_dimension_helper(intern, &offset, val);
 		RETURN_TRUE;
@@ -810,7 +810,7 @@ PHP_MINIT_FUNCTION(arraylist) /* {{{ */ {
 	handler_array_list.dtor_obj        = zend_objects_destroy_object;
 
 
-	handler_array_list.read_dimension  = arraylist_object_read_dimension;
+	 handler_array_list.read_dimension  = arraylist_object_read_dimension;
 	 handler_array_list.write_dimension = arraylist_object_write_dimension;
 	 handler_array_list.unset_dimension = arraylist_object_unset_dimension;
 	 handler_array_list.has_dimension   = arraylist_object_has_dimension;
